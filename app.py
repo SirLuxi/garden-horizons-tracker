@@ -1,25 +1,42 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-st.set_page_config(page_title="Garden Horizons Tracker", page_icon="🌱")
+# Page setup
+st.set_page_config(page_title="Garden Horizons Live Stock", page_icon="🌱")
 
 st.title("🌱 Garden Horizons Live Stock")
 st.write("Real-time updates for seeds and gear.")
 
-# Create a connection to your Google Sheet
-conn = st.connection("gsheets", type=GSheetsConnection)
+try:
+    # Establishing connection to Google Sheets
+    # This reads from your [connections.gsheets] in the Streamlit Secrets
+    conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Read the data (we'll set the URL in the next step)
-df = conn.read(ttl="1m") # Updates every 1 minute
+    # Read the data - ttl="1m" means it refreshes every minute
+    df = conn.read(ttl="1m")
 
-# Display Seeds
-st.header("🛒 Current Seeds")
-seeds = df[df['Category'] == 'Seed']
-st.table(seeds)
+    # Display the full stock list
+    if not df.empty:
+        st.subheader("Current Market Inventory")
+        # This will display your sheet as a clean, searchable table
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # Simple buttons to filter if the sheet gets large
+        if "Category" in df.columns:
+            tab1, tab2 = st.tabs(["Seeds", "Gear"])
+            with tab1:
+                st.table(df[df['Category'].str.contains('Seed', case=False, na=False)])
+            with tab2:
+                st.table(df[df['Category'].str.contains('Gear', case=False, na=False)])
+    else:
+        st.warning("The spreadsheet is empty. Add some items to your Google Sheet to see them here!")
 
-# Display Gear
-st.header("🛠️ Current Gear")
-gear = df[df['Category'] == 'Gear']
-st.table(gear)
-
-st.info("Next global refresh in: Check Discord for exact timers.")
+except Exception as e:
+    st.error("Connection Error: Streamlit cannot reach your Google Sheet.")
+    st.info("Check your Streamlit Secrets and ensure the Sheet URL is correct.")
+    # This helps you debug without leaking your full secret keys
+    if "404" in str(e):
+        st.write("Error: Spreadsheet not found. Check the ID in your URL.")
+    elif "403" in str(e):
+        st.write("Error: Access Denied. Make sure your sheet is set to 'Anyone with the link' can view.")
